@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash \"/mnt/c/Users/j2001/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/skills/brainstorming/scripts/start-server.sh\" --project-dir /home/erlenfrosch/repos/fun-nav)",
+      "Bash(find /mnt/c/Users/j2001/.claude/plugins/cache -name \"start-server.sh\" 2>/dev/null | head -5)",
+      "Bash(ls \"/mnt/c/Users/j2001/.claude/\" 2>/dev/null && echo \"ok\" || echo \"failed\")",
+      "Bash(wsl gh *)",
+      "Read(///wsl.localhost/ubuntu/home/erlenfrosch/repos/**)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
+    ]
+  }
+}
