@@ -1,0 +1,53 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "bash -c 'root=$(git rev-parse --show-toplevel 2\u003e/dev/null || pwd) \u0026\u0026 exec bash \"$root/.claude/hooks/pre-tool.sh\"'",
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash|Edit|Write"
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "bash -c 'root=$(git rev-parse --show-toplevel 2\u003e/dev/null || pwd) \u0026\u0026 exec bash \"$root/.claude/hooks/prompt-submit.sh\"'",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ]
+  },
+  "model": "claude-sonnet-4-6",
+  "permissionMode": "bypass",
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git branch:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(go test:*)",
+      "Bash(go build:*)",
+      "Bash(go vet:*)",
+      "Bash(make test:*)",
+      "Bash(make build:*)",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean -f:*)",
+      "Bash(chmod -R 777:*)"
+    ]
+  }
+}
