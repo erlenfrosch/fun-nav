@@ -29,11 +29,11 @@ Standardmäßig wird Liechtenstein (~1 MB) als Testdatensatz geladen. Region üb
 
 | Region | Größe | Befehl |
 |---|---|---|
-| `liechtenstein` | ~1 MB | `./scripts/download-osm.sh` (default) |
-| `austria` | ~740 MB | `./scripts/download-osm.sh --region austria` |
-| `switzerland` | ~360 MB | `./scripts/download-osm.sh --region switzerland` |
-| `dach` | ~800 MB | `./scripts/download-osm.sh --region dach` |
-| `germany` | ~3.7 GB | `./scripts/download-osm.sh --region germany` |
+| `liechtenstein` | ~1 MB   | `./scripts/download-osm.sh` (default) |
+| `austria`       | ~763 MB | `./scripts/download-osm.sh --region austria` |
+| `switzerland`   | ~507 MB | `./scripts/download-osm.sh --region switzerland` |
+| `dach`          | ~5.7 GB | `./scripts/download-osm.sh --region dach` |
+| `germany`       | ~4.4 GB | `./scripts/download-osm.sh --region germany` |
 
 ### 2. Services starten
 

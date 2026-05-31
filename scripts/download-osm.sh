@@ -12,10 +12,10 @@ done
 
 declare -A REGIONS=(
   [liechtenstein]="europe/liechtenstein-latest.osm.pbf|~1 MB"
-  [switzerland]="europe/switzerland-latest.osm.pbf|~360 MB"
-  [austria]="europe/austria-latest.osm.pbf|~740 MB"
-  [dach]="europe/dach-latest.osm.pbf|~800 MB"
-  [germany]="europe/germany-latest.osm.pbf|~3.7 GB"
+  [switzerland]="europe/switzerland-latest.osm.pbf|~507 MB"
+  [austria]="europe/austria-latest.osm.pbf|~763 MB"
+  [dach]="europe/dach-latest.osm.pbf|~5.7 GB"
+  [germany]="europe/germany-latest.osm.pbf|~4.4 GB"
 )
 
 if [[ -z "${REGIONS[$REGION]+set}" ]]; then
