@@ -1,8 +1,10 @@
+import './app.css'
+import Map from './components/Map'
+
 export default function App() {
   return (
-    <main>
-      <h1>fun-nav</h1>
-      <p>Navigationsdienst wird geladen…</p>
-    </main>
+    <div style={{ height: '100%', width: '100%' }}>
+      <Map />
+    </div>
   )
 }
