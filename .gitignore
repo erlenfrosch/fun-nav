@@ -1,0 +1,31 @@
+# OSM-Daten (können mehrere hundert MB groß sein)
+graphhopper/data/*.pbf
+graphhopper/data/*.osm
+graphhopper/data/graph-cache/
+
+# Node.js
+node_modules/
+dist/
+.vite/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Umgebungsvariablen
+.env
+.env.local
+.env.*.local
+
+# Betriebssystem
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp

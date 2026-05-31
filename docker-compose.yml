@@ -1,0 +1,31 @@
+services:
+  graphhopper:
+    image: graphhopper/graphhopper:7
+    volumes:
+      - ./graphhopper/data:/data
+      - ./graphhopper/config.yml:/graphhopper/config.yml
+    ports:
+      - "8989:8989"
+    environment:
+      - JAVA_OPTS=-Xmx1g -Xms256m
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - GRAPHHOPPER_URL=http://graphhopper:8989
+    depends_on:
+      - graphhopper
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped

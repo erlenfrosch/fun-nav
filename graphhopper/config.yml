@@ -1,0 +1,27 @@
+graphhopper:
+  datareader.file: /data/map.osm.pbf
+  graph.location: /data/graph-cache
+
+  profiles:
+    - name: car
+      vehicle: car
+      weighting: fastest
+    - name: bike
+      vehicle: bike
+      weighting: fastest
+    - name: foot
+      vehicle: foot
+      weighting: fastest
+
+  profiles_ch:
+    - profile: car
+
+server:
+  application_connectors:
+    - type: http
+      port: 8989
+      bind_host: 0.0.0.0
+  admin_connectors:
+    - type: http
+      port: 8990
+      bind_host: 0.0.0.0
