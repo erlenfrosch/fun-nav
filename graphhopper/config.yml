@@ -12,9 +12,16 @@ graphhopper:
     - name: foot
       vehicle: foot
       weighting: fastest
+    - name: bike_custom
+      vehicle: bike
+      weighting: custom
+      custom_model: {}
 
   profiles_ch:
     - profile: car
+
+  profiles_lm:
+    - profile: bike_custom
 
 server:
   application_connectors:
