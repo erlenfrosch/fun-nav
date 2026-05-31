@@ -5,7 +5,8 @@ graphhopper:
   profiles:
     - name: car
       vehicle: car
-      weighting: fastest
+      weighting: custom
+      custom_model_files: []
     - name: bike
       vehicle: bike
       weighting: fastest

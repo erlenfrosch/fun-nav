@@ -24,9 +24,16 @@ chmod +x scripts/download-osm.sh
 ./scripts/download-osm.sh
 ```
 
-Das Skript lädt Liechtenstein (~1 MB) als Testdatensatz. Für produktive Nutzung
-`.pbf`-Datei aus [Geofabrik](https://download.geofabrik.de/) herunterladen und als
-`graphhopper/data/map.osm.pbf` ablegen.
+Standardmäßig wird Liechtenstein (~1 MB) als Testdatensatz geladen. Region über
+`--region` oder `REGION`-Variable wählbar:
+
+| Region | Größe | Befehl |
+|---|---|---|
+| `liechtenstein` | ~1 MB | `./scripts/download-osm.sh` (default) |
+| `austria` | ~740 MB | `./scripts/download-osm.sh --region austria` |
+| `switzerland` | ~360 MB | `./scripts/download-osm.sh --region switzerland` |
+| `dach` | ~800 MB | `./scripts/download-osm.sh --region dach` |
+| `germany` | ~3.7 GB | `./scripts/download-osm.sh --region germany` |
 
 ### 2. Services starten
 
@@ -34,12 +41,22 @@ Das Skript lädt Liechtenstein (~1 MB) als Testdatensatz. Für produktive Nutzun
 docker-compose up
 ```
 
-Beim ersten Start verarbeitet GraphHopper die OSM-Daten (ca. 1–2 Minuten).
-Anschließend ist die Routing-API unter http://localhost:8989 erreichbar.
+GraphHopper verarbeitet die OSM-Daten beim ersten Start (Liechtenstein: ~1 Min,
+DACH: ~10 Min). Der Backend-Service startet erst, wenn GraphHopper vollständig
+bereit ist.
+
+**DACH-Production** (erhöhter Speicher, längerer Start-Timeout):
+
+```bash
+docker-compose -f docker-compose.yml -f docker-compose.dach.yml up
+```
 
 ### 3. Health-Check
 
 ```bash
+curl http://localhost:8989/health
+# {"status":"healthy"}
+
 curl http://localhost:8000/health
 # {"status":"ok"}
 ```
@@ -48,13 +65,14 @@ curl http://localhost:8000/health
 
 ```
 .
-├── frontend/       React Vite PWA
-├── backend/        FastAPI + Uvicorn
-├── graphhopper/    Routing-Engine (Config + Datenpfad)
-│   └── data/       OSM-Daten (gitignored: *.pbf)
-├── scripts/        Hilfsskripte
-├── docs/           Dokumentation
-└── docker-compose.yml
+├── frontend/             React Vite PWA
+├── backend/              FastAPI + Uvicorn
+├── graphhopper/          Routing-Engine (Config + Datenpfad)
+│   └── data/             OSM-Daten (gitignored: *.pbf)
+├── scripts/              Hilfsskripte
+├── docs/                 Dokumentation
+├── docker-compose.yml
+└── docker-compose.dach.yml  DACH-Production Override (höhere RAM-Limits)
 ```
 
 ## Entwicklung
