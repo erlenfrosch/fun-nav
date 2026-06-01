@@ -2,21 +2,14 @@ graphhopper:
   datareader.file: /data/map.osm.pbf
   graph.location: /data/graph-cache
 
+  graph.encoded_values: car_access, car_average_speed, road_class, road_environment, max_speed, roundabout, surface, country
+
   profiles:
-    - name: car
-      custom_model_files: [car.json]
-    - name: car_custom
-      custom_model_files: [car.json]
-    - name: bike
-      custom_model_files: [bike.json]
-    - name: foot
-      custom_model_files: [foot.json]
+    - name: auto
+      custom_model_files: []
 
-  # CH: schnelles Routing für Standard-Car-Anfragen
-  profiles_ch:
-    - profile: car
-
-  # car_custom läuft ohne CH → Custom Model per Anfrage möglich
+  profiles_lm:
+    - profile: auto
 
 server:
   application_connectors:
