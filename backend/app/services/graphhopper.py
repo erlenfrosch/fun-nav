@@ -1,61 +1,87 @@
 import os
-from typing import Tuple
+from typing import Literal
 
 import httpx
 
-_DEFAULT_URL = os.getenv("GRAPHHOPPER_URL", "http://graphhopper:8989")
+GRAPHHOPPER_URL = os.getenv("GRAPHHOPPER_URL", "http://graphhopper:8989")
 
-CUSTOM_MODELS: dict[str, dict] = {
-    "kurvenreich": {
-        "priority": [
-            {"if": "curvature < 0.7", "multiply_by": 1.5},
-            {"if": "road_class == MOTORWAY", "multiply_by": 0.1},
-        ]
-    },
-    "sehr_kurvenreich": {
-        "priority": [
-            {"if": "curvature < 0.4", "multiply_by": 3.0},
-            {"if": "road_class == MOTORWAY || road_class == TRUNK", "multiply_by": 0.05},
-        ]
-    },
+CURVY_MODEL = {
+    "priority": [
+        {"if": "curvature < 0.7", "multiply_by": 1.5},
+        {"if": "road_class == MOTORWAY", "multiply_by": 0.1},
+    ]
+}
+
+VERY_CURVY_MODEL = {
+    "priority": [
+        {"if": "curvature < 0.4", "multiply_by": 3.0},
+        {"if": "road_class == MOTORWAY || road_class == TRUNK", "multiply_by": 0.05},
+    ]
+}
+
+CurvyMode = Literal["kurvenreich", "sehr_kurvenreich"]
+
+_MODELS: dict[str, dict] = {
+    "kurvenreich": CURVY_MODEL,
+    "sehr_kurvenreich": VERY_CURVY_MODEL,
 }
 
 
-async def route_curvy(
-    start: Tuple[float, float],
-    end: Tuple[float, float],
-    mode: str,
-    base_url: str = _DEFAULT_URL,
+def get_route(
+    start: list[float],
+    end: list[float],
+    mode: CurvyMode,
+    base_url: str = GRAPHHOPPER_URL,
 ) -> dict:
-    """Route from start to end using a curviness custom model.
+    """Route von start nach end mit dem gewählten Kurvigkeits-Modus berechnen.
 
     Args:
-        start: (lat, lon) of the starting point.
-        end:   (lat, lon) of the destination.
-        mode:  One of 'kurvenreich' or 'sehr_kurvenreich'.
-        base_url: GraphHopper base URL.
+        start: [longitude, latitude]
+        end:   [longitude, latitude]
+        mode:  "kurvenreich" oder "sehr_kurvenreich"
+        base_url: GraphHopper-URL (überschreibbar für Tests).
 
     Returns:
-        The raw GraphHopper JSON response.
+        Vollständige GraphHopper-Route-Antwort als Dict.
 
     Raises:
-        ValueError: For unknown mode.
-        httpx.HTTPStatusError: On non-2xx GraphHopper responses.
+        ValueError: Bei unbekanntem mode.
+        httpx.HTTPStatusError: Bei HTTP-Fehlern des GH-Servers.
     """
-    if mode not in CUSTOM_MODELS:
-        raise ValueError(f"Unbekannter Modus {mode!r}. Gültig: {list(CUSTOM_MODELS)}")
+    if mode not in _MODELS:
+        raise ValueError(f"Unbekannter Modus {mode!r}. Gültig: {list(_MODELS)}")
 
     payload = {
-        "profile": "bike_custom",
-        # GraphHopper expects [lon, lat] order
-        "points": [[start[1], start[0]], [end[1], end[0]]],
-        "custom_model": CUSTOM_MODELS[mode],
-        "calc_points": True,
-        "instructions": False,
-        "points_encoded": False,
+        "profile": "motorcycle",
+        "points": [start, end],
+        "ch.disable": True,
+        "custom_model": _MODELS[mode],
+        "details": ["road_class", "curvature"],
     }
-
-    async with httpx.AsyncClient() as client:
-        response = await client.post(f"{base_url}/route", json=payload)
+    with httpx.Client() as client:
+        response = client.post(
+            f"{base_url}/route",
+            json=payload,
+            timeout=30.0,
+        )
         response.raise_for_status()
         return response.json()
+
+
+def average_curvature(path: dict) -> float:
+    """Durchschnittlichen Curvature-Wert eines GH-Pfades berechnen.
+
+    Args:
+        path: Ein einzelnes Element aus `response["paths"]`.
+
+    Returns:
+        Gewichteter Durchschnitt aller Curvature-Segmentwerte, oder 1.0 wenn leer.
+    """
+    segments: list = path.get("details", {}).get("curvature", [])
+    if not segments:
+        return 1.0
+    total_length = sum(seg[1] - seg[0] for seg in segments)
+    if total_length == 0:
+        return 1.0
+    weighted_sum = sum((seg[1] - seg[0]) * seg[2] for seg in segments)
+    return weighted_sum / total_length
