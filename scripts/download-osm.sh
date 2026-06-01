@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REGION="${REGION:-liechtenstein}"
+REGION="${REGION:-dach}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

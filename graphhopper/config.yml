@@ -4,18 +4,19 @@ graphhopper:
 
   profiles:
     - name: car
-      vehicle: car
-      weighting: custom
-      custom_model_files: []
+      custom_model_files: [car.json]
+    - name: car_custom
+      custom_model_files: [car.json]
     - name: bike
-      vehicle: bike
-      weighting: fastest
+      custom_model_files: [bike.json]
     - name: foot
-      vehicle: foot
-      weighting: fastest
+      custom_model_files: [foot.json]
 
+  # CH: schnelles Routing für Standard-Car-Anfragen
   profiles_ch:
     - profile: car
+
+  # car_custom läuft ohne CH → Custom Model per Anfrage möglich
 
 server:
   application_connectors:

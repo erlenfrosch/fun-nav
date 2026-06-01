@@ -1,6 +1,6 @@
 services:
   graphhopper:
-    image: graphhopper/graphhopper:7
+    image: graphhopper/graphhopper:latest
     volumes:
       - ./graphhopper/data:/data
       - ./graphhopper/config.yml:/graphhopper/config.yml
