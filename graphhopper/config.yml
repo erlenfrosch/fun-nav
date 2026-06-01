@@ -2,6 +2,8 @@ graphhopper:
   datareader.file: /data/map.osm.pbf
   graph.location: /data/graph-cache
 
+  graph.encoded_values: road_class,curvature
+
   profiles:
     - name: car
       vehicle: car
@@ -12,17 +14,12 @@ graphhopper:
     - name: foot
       vehicle: foot
       weighting: fastest
-    - name: motorcycle
-      vehicle: motorcycle
+    - name: car_custom
+      vehicle: car
       weighting: custom
-      custom_model:
-        priority: []
 
   profiles_ch:
     - profile: car
-
-  profiles_lm:
-    - profile: motorcycle
 
 server:
   application_connectors:

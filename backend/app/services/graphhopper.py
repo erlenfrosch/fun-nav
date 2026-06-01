@@ -33,26 +33,11 @@ def get_route(
     mode: CurvyMode,
     base_url: str = GRAPHHOPPER_URL,
 ) -> dict:
-    """Route von start nach end mit dem gewählten Kurvigkeits-Modus berechnen.
-
-    Args:
-        start: [longitude, latitude]
-        end:   [longitude, latitude]
-        mode:  "kurvenreich" oder "sehr_kurvenreich"
-        base_url: GraphHopper-URL (überschreibbar für Tests).
-
-    Returns:
-        Vollständige GraphHopper-Route-Antwort als Dict.
-
-    Raises:
-        ValueError: Bei unbekanntem mode.
-        httpx.HTTPStatusError: Bei HTTP-Fehlern des GH-Servers.
-    """
     if mode not in _MODELS:
         raise ValueError(f"Unbekannter Modus {mode!r}. Gültig: {list(_MODELS)}")
 
     payload = {
-        "profile": "motorcycle",
+        "profile": "car_custom",
         "points": [start, end],
         "ch.disable": True,
         "custom_model": _MODELS[mode],
@@ -69,14 +54,6 @@ def get_route(
 
 
 def average_curvature(path: dict) -> float:
-    """Durchschnittlichen Curvature-Wert eines GH-Pfades berechnen.
-
-    Args:
-        path: Ein einzelnes Element aus `response["paths"]`.
-
-    Returns:
-        Gewichteter Durchschnitt aller Curvature-Segmentwerte, oder 1.0 wenn leer.
-    """
     segments: list = path.get("details", {}).get("curvature", [])
     if not segments:
         return 1.0
