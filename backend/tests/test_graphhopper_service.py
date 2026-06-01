@@ -12,7 +12,7 @@ import pytest
 import httpx
 import respx
 
-from backend.app.services.graphhopper import (
+from app.services.graphhopper import (
     CURVY_MODEL,
     VERY_CURVY_MODEL,
     average_curvature,
