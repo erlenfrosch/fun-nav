@@ -15,34 +15,24 @@ def _read_script(path):
 
 
 class TestGraphHopperConfig:
-    def test_car_profile_exists(self):
+    def test_auto_profile_exists(self):
         cfg = _load_yaml("graphhopper/config.yml")
         names = [p["name"] for p in cfg["graphhopper"]["profiles"]]
-        assert "car" in names
+        assert "auto" in names
 
-    def test_car_custom_profile_exists(self):
+    def test_auto_profile_has_custom_model_files(self):
         cfg = _load_yaml("graphhopper/config.yml")
-        names = [p["name"] for p in cfg["graphhopper"]["profiles"]]
-        assert "car_custom" in names
+        auto = next(p for p in cfg["graphhopper"]["profiles"] if p["name"] == "auto")
+        assert "custom_model_files" in auto
 
-    def test_car_custom_profile_uses_custom_weighting(self):
+    def test_graph_encoded_values_set(self):
         cfg = _load_yaml("graphhopper/config.yml")
-        car_custom = next(
-            p for p in cfg["graphhopper"]["profiles"] if p["name"] == "car_custom"
-        )
-        assert car_custom["weighting"] == "custom"
+        assert "graph.encoded_values" in cfg["graphhopper"]
 
-    def test_car_custom_profile_has_custom_model(self):
-        cfg = _load_yaml("graphhopper/config.yml")
-        car_custom = next(
-            p for p in cfg["graphhopper"]["profiles"] if p["name"] == "car_custom"
-        )
-        assert "custom_model" in car_custom
-
-    def test_lm_profile_for_car_custom(self):
+    def test_lm_profile_for_auto(self):
         cfg = _load_yaml("graphhopper/config.yml")
         lm_profiles = [p["profile"] for p in cfg["graphhopper"].get("profiles_lm", [])]
-        assert "car_custom" in lm_profiles
+        assert "auto" in lm_profiles
 
 
 class TestDockerCompose:
