@@ -12,6 +12,9 @@ graphhopper:
     - name: foot
       vehicle: foot
       weighting: fastest
+    - name: car_custom
+      vehicle: car
+      weighting: custom
 
   profiles_ch:
     - profile: car
