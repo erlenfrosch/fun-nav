@@ -1,146 +1,109 @@
-"""Tests für POST /api/routes/circular.
-
-Unit-Tests: httpx-Client via unittest.mock gepatcht.
-Integration-Tests: echtes GraphHopper, markiert mit @pytest.mark.integration
-"""
-import os
-import sys
-import pytest
 import httpx
-from httpx import AsyncClient, ASGITransport
-from unittest.mock import AsyncMock, patch, MagicMock
+import pytest
+import respx
+from fastapi.testclient import TestClient
+from httpx import AsyncClient, ASGITransport, Response
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from app.main import app
 
+client = TestClient(app)
 
-GH_ROUTE_RESPONSE = {
-    "paths": [
-        {
-            "time": 3498000,
-            "distance": 47200.0,
-            "points": {
-                "type": "LineString",
-                "coordinates": [[11.575, 48.137], [11.580, 48.140], [11.575, 48.137]],
-            },
-            "instructions": [
-                {"text": "Links abbiegen", "distance": 320.0},
-                {"text": "Ziel erreicht", "distance": 0.0},
-            ],
-        }
-    ]
+_GH_URL = "http://graphhopper:8989/route"
+
+_MOCK_PATH = {
+    "distance": 47200.0,
+    "time": 3_498_000,
+    "points": {
+        "type": "LineString",
+        "coordinates": [[11.575, 48.137], [11.600, 48.150], [11.575, 48.137]],
+    },
+    "instructions": [
+        {"text": "Links abbiegen", "distance": 320.0},
+        {"text": "Ziel erreicht", "distance": 0.0},
+    ],
 }
 
+_VALID_BODY = {"lat": 48.137, "lon": 11.575, "duration_min": 60, "curviness": "high"}
 
-@pytest.mark.asyncio
-async def test_circular_returns_three_routes():
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = GH_ROUTE_RESPONSE
 
-    with patch("app.routers.routes.httpx.AsyncClient") as mock_client:
-        mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-            return_value=mock_response
-        )
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-            resp = await ac.post(
-                "/api/routes/circular",
-                json={"lat": 48.137, "lon": 11.575, "duration_min": 60, "curviness": "high"},
-            )
+@respx.mock
+def test_circular_returns_three_routes():
+    respx.post(_GH_URL).mock(return_value=Response(200, json={"paths": [_MOCK_PATH]}))
+
+    resp = client.post("/api/routes/circular", json=_VALID_BODY)
 
     assert resp.status_code == 200
     data = resp.json()
     assert len(data["routes"]) == 3
-    assert data["routes"][0]["id"] == "route_1"
-    assert data["routes"][2]["id"] == "route_3"
+    for i, route in enumerate(data["routes"]):
+        assert route["id"] == f"route_{i + 1}"
+        assert route["geojson"]["type"] == "LineString"
+        assert len(route["geojson"]["coordinates"]) > 0
+        assert route["duration_min"] == pytest.approx(58.3, abs=0.1)
+        assert route["distance_km"] == pytest.approx(47.2, abs=0.1)
+        assert len(route["instructions"]) == 2
 
 
-@pytest.mark.asyncio
-async def test_route_response_schema():
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = GH_ROUTE_RESPONSE
+@respx.mock
+def test_route_response_schema():
+    respx.post(_GH_URL).mock(return_value=Response(200, json={"paths": [_MOCK_PATH]}))
 
-    with patch("app.routers.routes.httpx.AsyncClient") as mock_client:
-        mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-            return_value=mock_response
-        )
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-            resp = await ac.post(
-                "/api/routes/circular",
-                json={"lat": 48.137, "lon": 11.575, "duration_min": 60, "curviness": "high"},
-            )
-
+    resp = client.post("/api/routes/circular", json=_VALID_BODY)
     route = resp.json()["routes"][0]
+
     assert route["id"] == "route_1"
-    assert route["duration_min"] == 58.3
-    assert route["distance_km"] == 47.2
+    assert route["duration_min"] == pytest.approx(58.3, abs=0.1)
+    assert route["distance_km"] == pytest.approx(47.2, abs=0.1)
     assert route["geojson"]["type"] == "LineString"
     assert len(route["geojson"]["coordinates"]) == 3
     assert route["instructions"][0]["text"] == "Links abbiegen"
     assert route["instructions"][0]["distance"] == 320.0
 
 
-@pytest.mark.asyncio
-async def test_very_high_curviness_accepted():
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = GH_ROUTE_RESPONSE
+@respx.mock
+def test_circular_very_high_curviness():
+    respx.post(_GH_URL).mock(return_value=Response(200, json={"paths": [_MOCK_PATH]}))
 
-    with patch("app.routers.routes.httpx.AsyncClient") as mock_client:
-        mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-            return_value=mock_response
-        )
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-            resp = await ac.post(
-                "/api/routes/circular",
-                json={"lat": 48.137, "lon": 11.575, "duration_min": 60, "curviness": "very_high"},
-            )
+    resp = client.post(
+        "/api/routes/circular",
+        json={**_VALID_BODY, "curviness": "very_high"},
+    )
 
     assert resp.status_code == 200
+    assert len(resp.json()["routes"]) == 3
 
 
-@pytest.mark.asyncio
-async def test_503_when_graphhopper_unreachable():
-    with patch("app.routers.routes.httpx.AsyncClient") as mock_client:
-        mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-            side_effect=httpx.ConnectError("Connection refused")
-        )
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-            resp = await ac.post(
-                "/api/routes/circular",
-                json={"lat": 48.137, "lon": 11.575, "duration_min": 60, "curviness": "high"},
-            )
+@respx.mock
+def test_circular_503_when_graphhopper_down():
+    respx.post(_GH_URL).mock(side_effect=httpx.ConnectError("Connection refused"))
+
+    resp = client.post("/api/routes/circular", json=_VALID_BODY)
 
     assert resp.status_code == 503
+    assert "GraphHopper" in resp.json()["detail"]
 
 
-@pytest.mark.asyncio
-async def test_404_when_no_route_found():
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {"paths": []}
+@respx.mock
+def test_circular_404_when_no_routes_found():
+    respx.post(_GH_URL).mock(return_value=Response(200, json={"paths": []}))
 
-    with patch("app.routers.routes.httpx.AsyncClient") as mock_client:
-        mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-            return_value=mock_response
-        )
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-            resp = await ac.post(
-                "/api/routes/circular",
-                json={"lat": 48.137, "lon": 11.575, "duration_min": 60, "curviness": "high"},
-            )
+    resp = client.post("/api/routes/circular", json=_VALID_BODY)
 
     assert resp.status_code == 404
 
 
-@pytest.mark.asyncio
-async def test_invalid_curviness_returns_422():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        resp = await ac.post(
-            "/api/routes/circular",
-            json={"lat": 48.137, "lon": 11.575, "duration_min": 60, "curviness": "medium"},
-        )
+def test_circular_rejects_invalid_curviness():
+    resp = client.post(
+        "/api/routes/circular",
+        json={**_VALID_BODY, "curviness": "low"},
+    )
+
+    assert resp.status_code == 422
+
+
+def test_circular_rejects_missing_fields():
+    resp = client.post("/api/routes/circular", json={"lat": 48.137})
+
     assert resp.status_code == 422
 
 
@@ -151,7 +114,7 @@ async def test_integration_three_routes_with_geojson():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         resp = await ac.post(
             "/api/routes/circular",
-            json={"lat": 48.137, "lon": 11.575, "duration_min": 60, "curviness": "high"},
+            json=_VALID_BODY,
             timeout=10.0,
         )
 

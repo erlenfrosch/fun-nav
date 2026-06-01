@@ -1,76 +1,94 @@
+import asyncio
 import os
-from fastapi import APIRouter, HTTPException
+from typing import List
+
 import httpx
+from fastapi import APIRouter, HTTPException
 
 from app.models.schemas import (
     CircularRouteRequest,
     CircularRouteResponse,
-    Route,
-    GeoJSON,
-    Instruction,
+    GeoJsonLineString,
+    RouteInstruction,
+    RouteResult,
 )
 
 router = APIRouter(prefix="/api/routes", tags=["routes"])
 
-GRAPHHOPPER_URL = os.getenv("GRAPHHOPPER_URL", "http://localhost:8989")
-NUM_ROUTES = 3
+GRAPHHOPPER_URL = os.getenv("GRAPHHOPPER_URL", "http://graphhopper:8989")
 
-CURVINESS_M_PER_MIN = {
-    "high": 250,
-    "very_high": 167,
+_SPEED_M_PER_MIN: dict = {
+    "high": 250.0,
+    "very_high": 200.0,
 }
+
+_NUM_ROUTES = 3
+
+
+async def _fetch_route(
+    client: httpx.AsyncClient,
+    lat: float,
+    lon: float,
+    distance_m: float,
+    seed: int,
+) -> dict:
+    payload = {
+        "points": [[lon, lat]],
+        "profile": "bike",
+        "algorithm": "round_trip",
+        "round_trip.distance": distance_m,
+        "round_trip.seed": seed,
+        "points_encoded": False,
+        "instructions": True,
+    }
+    response = await client.post(
+        f"{GRAPHHOPPER_URL}/route",
+        json=payload,
+        timeout=10.0,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def _parse_path(path: dict, route_id: str) -> RouteResult:
+    coords = path["points"]["coordinates"]
+    return RouteResult(
+        id=route_id,
+        duration_min=round(path["time"] / 60_000, 1),
+        distance_km=round(path["distance"] / 1000, 1),
+        geojson=GeoJsonLineString(type="LineString", coordinates=coords),
+        instructions=[
+            RouteInstruction(text=i.get("text", ""), distance=i.get("distance", 0.0))
+            for i in path.get("instructions", [])
+        ],
+    )
 
 
 @router.post("/circular", response_model=CircularRouteResponse)
-async def circular_route(req: CircularRouteRequest) -> CircularRouteResponse:
-    distance_m = int(req.duration_min * CURVINESS_M_PER_MIN.get(req.curviness, 250))
+async def post_circular_route(body: CircularRouteRequest) -> CircularRouteResponse:
+    distance_m = body.duration_min * _SPEED_M_PER_MIN[body.curviness.value]
 
-    routes: list[Route] = []
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        for seed in range(NUM_ROUTES):
-            params = {
-                "point": f"{req.lat},{req.lon}",
-                "profile": "bike",
-                "algorithm": "round_trip",
-                "round_trip.distance": distance_m,
-                "round_trip.seed": seed,
-                "locale": "de",
-                "calc_points": "true",
-                "instructions": "true",
-                "points_encoded": "false",
-            }
-            try:
-                resp = await client.get(f"{GRAPHHOPPER_URL}/route", params=params)
-            except httpx.ConnectError as exc:
-                raise HTTPException(
-                    status_code=503, detail="GraphHopper nicht erreichbar"
-                ) from exc
+    async with httpx.AsyncClient() as client:
+        results = await asyncio.gather(
+            *[
+                _fetch_route(client, body.lat, body.lon, distance_m, seed)
+                for seed in range(_NUM_ROUTES)
+            ],
+            return_exceptions=True,
+        )
 
-            if resp.status_code != 200:
-                raise HTTPException(
-                    status_code=503, detail=f"GraphHopper-Fehler: {resp.status_code}"
-                )
+    routes: List[RouteResult] = []
 
-            data = resp.json()
-            paths = data.get("paths", [])
-            if not paths:
-                raise HTTPException(status_code=404, detail="Keine Route gefunden")
+    for i, result in enumerate(results):
+        if isinstance(result, httpx.ConnectError):
+            raise HTTPException(status_code=503, detail="GraphHopper nicht erreichbar")
+        if isinstance(result, Exception):
+            continue
+        paths = result.get("paths", [])
+        if paths:
+            routes.append(_parse_path(paths[0], f"route_{i + 1}"))
 
-            path = paths[0]
-            routes.append(
-                Route(
-                    id=f"route_{seed + 1}",
-                    duration_min=round(path["time"] / 60_000, 1),
-                    distance_km=round(path["distance"] / 1_000, 1),
-                    geojson=GeoJSON(**path["points"]),
-                    instructions=[
-                        Instruction(
-                            text=instr.get("text", ""),
-                            distance=instr.get("distance", 0.0),
-                        )
-                        for instr in path.get("instructions", [])
-                    ],
-                )
-            )
+    if not routes:
+        raise HTTPException(status_code=404, detail="Keine Routen gefunden")
 
     return CircularRouteResponse(routes=routes)

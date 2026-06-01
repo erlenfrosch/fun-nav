@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import routes
+from app.routers.routes import router as routes_router
 
 app = FastAPI(title="fun-nav API", version="0.1.0")
 
@@ -18,4 +18,4 @@ def health():
     return {"status": "ok"}
 
 
-app.include_router(routes.router)
+app.include_router(routes_router)
