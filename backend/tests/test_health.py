@@ -11,7 +11,7 @@ def test_health_returns_ok():
     assert response.json() == {"status": "ok"}
 
 
-def test_cors_header_for_frontend_origin():
+def test_health_cors_header_for_frontend_origin():
     response = client.get(
         "/health",
         headers={"Origin": "http://localhost:5173"},
@@ -20,12 +20,9 @@ def test_cors_header_for_frontend_origin():
     assert response.headers.get("access-control-allow-origin") == "http://localhost:5173"
 
 
-def test_cors_does_not_allow_arbitrary_origin():
-    response = client.options(
+def test_health_cors_blocked_for_unknown_origin():
+    response = client.get(
         "/health",
-        headers={
-            "Origin": "http://evil.example.com",
-            "Access-Control-Request-Method": "GET",
-        },
+        headers={"Origin": "http://evil.example.com"},
     )
-    assert response.headers.get("access-control-allow-origin") != "http://evil.example.com"
+    assert response.headers.get("access-control-allow-origin") is None
