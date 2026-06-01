@@ -10,20 +10,21 @@ export default defineConfig({
       manifest: {
         name: 'fun-nav',
         short_name: 'fun-nav',
-        description: 'Navigationsapp für die DACH-Region',
-        theme_color: '#1a1a2e',
+        description: 'Navigationsdienst auf Basis von GraphHopper',
+        theme_color: '#1a73e8',
         background_color: '#ffffff',
         display: 'standalone',
+        start_url: '/',
         icons: [
           {
-            src: 'pwa-192x192.png',
+            src: 'icon-192x192.svg',
             sizes: '192x192',
-            type: 'image/png',
+            type: 'image/svg+xml',
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'icon-512x512.svg',
             sizes: '512x512',
-            type: 'image/png',
+            type: 'image/svg+xml',
           },
         ],
       },
@@ -35,5 +36,10 @@ export default defineConfig({
     watch: {
       usePolling: true,
     },
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/test-setup.js'],
   },
 })
