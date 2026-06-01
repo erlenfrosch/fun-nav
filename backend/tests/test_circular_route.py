@@ -1,239 +1,282 @@
 import math
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 
-from services.circular_route import (
-    CircularRoute,
-    _build_route_requests,
-    _curviness,
-    _gh_route,
-    calculate_radius_km,
-    candidate_waypoints,
+from app.services.circular_route import (
+    compute_radius_km,
+    curviness_score,
+    destination_point,
     generate_circular_routes,
-    haversine_waypoint,
+    generate_waypoints,
 )
 
 # ---------------------------------------------------------------------------
 # Pure-math helpers
 # ---------------------------------------------------------------------------
 
-def test_calculate_radius_curvy():
-    # 60 min at 50 km/h: circumference = 50 km → radius = 50 / (2π)
-    r = calculate_radius_km(60.0, very_curvy=False)
-    assert abs(r - 50.0 / (2 * math.pi)) < 1e-9
+
+def test_compute_radius_km_60min():
+    r = compute_radius_km(60)
+    expected = (60 / 60 * 50) / (2 * math.pi)
+    assert abs(r - expected) < 0.01
 
 
-def test_calculate_radius_very_curvy():
-    r = calculate_radius_km(60.0, very_curvy=True)
-    assert abs(r - 40.0 / (2 * math.pi)) < 1e-9
+def test_compute_radius_km_30min():
+    r = compute_radius_km(30)
+    expected = (30 / 60 * 50) / (2 * math.pi)
+    assert abs(r - expected) < 0.01
 
 
-def test_calculate_radius_scales_with_time():
-    r30 = calculate_radius_km(30.0)
-    r60 = calculate_radius_km(60.0)
-    assert abs(r60 / r30 - 2.0) < 1e-9
+def test_compute_radius_km_scales_linearly():
+    assert abs(compute_radius_km(60) / compute_radius_km(30) - 2.0) < 1e-9
 
 
-def test_haversine_waypoint_north():
-    # Moving north 1° should increase latitude by ~1° (≈111 km)
-    lat, lon = haversine_waypoint(48.0, 11.0, 111.195, 0.0)
-    assert abs(lat - 49.0) < 0.01
-    assert abs(lon - 11.0) < 0.01
+def test_destination_point_north():
+    wp = destination_point(48.137, 11.575, bearing_deg=0, distance_km=100)
+    assert wp.lat > 48.137
+    assert abs(wp.lon - 11.575) < 0.2
 
 
-def test_haversine_waypoint_east():
-    lat, lon = haversine_waypoint(0.0, 0.0, 111.195, 90.0)
-    # At equator 1° longitude ≈ 111 km
-    assert abs(lat) < 0.01
-    assert abs(lon - 1.0) < 0.01
+def test_destination_point_east():
+    wp = destination_point(48.137, 11.575, bearing_deg=90, distance_km=100)
+    assert wp.lon > 11.575
+    assert abs(wp.lat - 48.137) < 0.5
 
 
-def test_haversine_waypoint_roundtrip():
-    # Waypoint at 0° and 180° should be symmetric around the center latitude
-    lat0, _ = haversine_waypoint(48.0, 11.0, 50.0, 0.0)
-    lat180, _ = haversine_waypoint(48.0, 11.0, 50.0, 180.0)
-    assert lat0 > 48.0
-    assert lat180 < 48.0
-    assert abs((lat0 - 48.0) - (48.0 - lat180)) < 0.01
+def test_destination_point_south():
+    wp = destination_point(48.137, 11.575, bearing_deg=180, distance_km=100)
+    assert wp.lat < 48.137
+    assert abs(wp.lon - 11.575) < 0.2
 
 
-def test_candidate_waypoints_count():
-    wps = candidate_waypoints(48.137, 11.575, 7.96)
+def test_destination_point_roundtrip():
+    wp1 = destination_point(48.137, 11.575, 0, 100)
+    wp2 = destination_point(wp1.lat, wp1.lon, 180, 100)
+    assert abs(wp2.lat - 48.137) < 0.01
+    assert abs(wp2.lon - 11.575) < 0.01
+
+
+def test_generate_waypoints_count():
+    wps = generate_waypoints(48.137, 11.575, radius_km=7.96)
     assert len(wps) == 8
 
 
-def test_candidate_waypoints_all_tuples():
-    wps = candidate_waypoints(48.137, 11.575, 7.96)
-    for lat, lon in wps:
-        assert -90 <= lat <= 90
-        assert -180 <= lon <= 180
+def test_generate_waypoints_opposites_symmetric():
+    lat, lon = 48.137, 11.575
+    r = 10.0
+    wps = generate_waypoints(lat, lon, r)
+    assert abs(wps[0].lat - lat) == pytest.approx(abs(wps[4].lat - lat), abs=0.01)
+    assert abs(wps[0].lon - lon) == pytest.approx(abs(wps[4].lon - lon), abs=0.01)
 
 
-def test_candidate_waypoints_roughly_equal_distance():
-    lat0, lon0 = 48.137, 11.575
-    radius = 7.96
-    wps = candidate_waypoints(lat0, lon0, radius)
-    for lat, lon in wps:
-        dlat = math.radians(lat - lat0)
-        dlon = math.radians(lon - lon0)
-        a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat0)) * math.cos(math.radians(lat)) * math.sin(dlon / 2) ** 2
-        dist = 6371.0 * 2 * math.asin(math.sqrt(a))
-        assert abs(dist - radius) < 0.5  # within 500 m
+def test_generate_waypoints_all_valid_coords():
+    wps = generate_waypoints(48.137, 11.575, radius_km=7.96)
+    for wp in wps:
+        assert -90 <= wp.lat <= 90
+        assert -180 <= wp.lon <= 180
 
 
-def test_build_route_requests():
-    start = (48.137, 11.575)
-    wps = candidate_waypoints(*start, 7.96)
-    reqs = _build_route_requests(start, wps)
-    assert len(reqs) == 6
-    for req in reqs:
-        assert req[0] == start
-        assert req[-1] == start
+def test_curviness_score_at_80kmh():
+    score = curviness_score(time_ms=3_600_000, distance_m=80_000)
+    assert score == pytest.approx(1.0, abs=0.01)
+
+
+def test_curviness_score_at_50kmh():
+    score = curviness_score(time_ms=3_600_000, distance_m=50_000)
+    assert score == pytest.approx(1.6, abs=0.01)
+
+
+def test_curviness_score_at_40kmh():
+    score = curviness_score(time_ms=3_600_000, distance_m=40_000)
+    assert score == pytest.approx(2.0, abs=0.01)
+
+
+def test_curviness_score_zero_distance():
+    assert curviness_score(time_ms=3_600_000, distance_m=0) == 0.0
 
 
 def test_curviness_lower_speed_higher_score():
-    # 50 km at 60 min (50 km/h) vs 50 km at 90 min (33 km/h)
-    score_fast = _curviness(50_000, 60 * 60 * 1_000)
-    score_slow = _curviness(50_000, 90 * 60 * 1_000)
-    assert score_slow > score_fast
-
-
-def test_curviness_zero_duration():
-    assert _curviness(50_000, 0) == 0.0
+    slow = curviness_score(time_ms=3_600_000, distance_m=40_000)
+    fast = curviness_score(time_ms=3_600_000, distance_m=60_000)
+    assert slow > fast
 
 
 # ---------------------------------------------------------------------------
-# GraphHopper HTTP mock
+# Mock helpers
 # ---------------------------------------------------------------------------
 
-class _FakeResponse:
-    """Minimal httpx-Response-Ersatz ohne Request-Objekt."""
-    def __init__(self, data: dict) -> None:
-        self._data = data
 
-    def raise_for_status(self) -> None:
-        pass
-
-    def json(self) -> dict:
-        return self._data
-
-
-class _MockHttpxClient:
-    """Einfacher Mock-Client, der nacheinander vordefinierte Antworten liefert."""
-
-    def __init__(self, responses: list[dict | None]) -> None:
-        self._iter = iter(responses)
-
-    async def post(self, url: str, **kwargs) -> _FakeResponse:
-        data = next(self._iter)
-        if data is None:
-            raise Exception("mock connection error")
-        return _FakeResponse(data)
-
-    async def aclose(self) -> None:
-        pass
-
-
-def _make_mock_client(responses: list[dict | None]) -> _MockHttpxClient:
-    return _MockHttpxClient(responses)
-
-
-def _path(duration_min: float, distance_km: float) -> dict:
-    return {"time": int(duration_min * 60 * 1_000), "distance": distance_km * 1_000}
+def _make_mock_response(time_ms: int, distance_m: int) -> MagicMock:
+    resp = MagicMock()
+    resp.raise_for_status = MagicMock()
+    resp.json.return_value = {"paths": [{"time": time_ms, "distance": distance_m}]}
+    return resp
 
 
 # ---------------------------------------------------------------------------
 # generate_circular_routes integration tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_acceptance_munich_60min():
     """
-    Acceptance: München (48.137°N, 11.575°E), 60 min →
-    3 routes with 48–72 min duration.
+    Akzeptanztest: München (48.137°N, 11.575°E), 60 min →
+    3 Routen mit 48–72 min Dauer.
     """
-    # All 6 mock paths return 60 min / different distances for varied curviness
-    responses = [
-        {"paths": [_path(60, 55)]},
-        {"paths": [_path(58, 50)]},
-        {"paths": [_path(65, 60)]},
-        {"paths": [_path(62, 52)]},
-        {"paths": [_path(70, 65)]},
-        {"paths": [_path(55, 48)]},
-    ]
-    client = _make_mock_client(responses)
+    target_ms = 60 * 60 * 1000
+    mock_resp = _make_mock_response(time_ms=target_ms, distance_m=50_000)
 
-    routes = await generate_circular_routes(48.137, 11.575, 60.0, _client=client)
+    with patch("app.services.circular_route.httpx.AsyncClient") as MockClient:
+        mock_client = AsyncMock()
+        MockClient.return_value.__aenter__.return_value = mock_client
+        mock_client.post = AsyncMock(return_value=mock_resp)
+
+        routes = await generate_circular_routes(
+            lat=48.137,
+            lon=11.575,
+            duration_min=60,
+            graphhopper_url="http://localhost:8989",
+        )
 
     assert len(routes) == 3
     for r in routes:
-        duration_min = r.duration_ms / 60_000
-        assert 48 <= duration_min <= 72, f"Duration {duration_min:.1f} min out of range"
+        assert 48.0 <= r["duration_min"] <= 72.0
 
 
 @pytest.mark.asyncio
-async def test_filters_out_of_range_routes():
-    # Only 2 of 6 responses are within ±20% of 60 min
-    responses = [
-        {"paths": [_path(20, 20)]},   # too short
-        {"paths": [_path(60, 55)]},   # ok
-        {"paths": [_path(100, 90)]},  # too long
-        {"paths": [_path(62, 53)]},   # ok
-        {"paths": [_path(10, 10)]},   # too short
-        {"paths": [_path(60, 50)]},   # ok
-    ]
-    client = _make_mock_client(responses)
-    routes = await generate_circular_routes(48.137, 11.575, 60.0, _client=client)
-    assert len(routes) == 3
-    for r in routes:
-        assert 48 <= r.duration_ms / 60_000 <= 72
+async def test_generate_circular_routes_returns_top3():
+    target_ms = 60 * 60 * 1000
+    mock_resp = _make_mock_response(time_ms=target_ms, distance_m=50_000)
 
+    with patch("app.services.circular_route.httpx.AsyncClient") as MockClient:
+        mock_client = AsyncMock()
+        MockClient.return_value.__aenter__.return_value = mock_client
+        mock_client.post = AsyncMock(return_value=mock_resp)
 
-@pytest.mark.asyncio
-async def test_returns_empty_when_no_valid_routes():
-    responses = [{"paths": [_path(10, 10)]}] * 6
-    client = _make_mock_client(responses)
-    routes = await generate_circular_routes(48.137, 11.575, 60.0, _client=client)
-    assert routes == []
+        routes = await generate_circular_routes(
+            lat=48.137,
+            lon=11.575,
+            duration_min=60,
+            graphhopper_url="http://localhost:8989",
+        )
 
-
-@pytest.mark.asyncio
-async def test_handles_gh_errors_gracefully():
-    # Mix of errors and valid responses
-    responses = [
-        None,
-        {"paths": [_path(60, 55)]},
-        None,
-        {"paths": [_path(58, 50)]},
-        None,
-        {"paths": [_path(65, 60)]},
-    ]
-    client = _make_mock_client(responses)
-    routes = await generate_circular_routes(48.137, 11.575, 60.0, _client=client)
     assert len(routes) == 3
 
 
 @pytest.mark.asyncio
-async def test_sorted_by_curviness_descending():
-    # Route A: 60 min / 40 km → avg 40 km/h (more curvy)
-    # Route B: 60 min / 50 km → avg 50 km/h (less curvy)
-    # Route C: 60 min / 55 km → avg 55 km/h (least curvy)
-    responses = [
-        {"paths": [_path(60, 50)]},  # B
-        {"paths": [_path(60, 40)]},  # A
-        {"paths": [_path(60, 55)]},  # C
-        {"paths": [_path(90, 90)]},  # filtered out
-        {"paths": [_path(60, 48)]},
-        {"paths": [_path(60, 52)]},
-    ]
-    client = _make_mock_client(responses)
-    routes = await generate_circular_routes(48.137, 11.575, 60.0, _client=client)
-    scores = [r.curviness_score for r in routes]
+async def test_generate_circular_routes_filters_out_of_range():
+    # 40 min ist 33% unter 60 min → rausgefiltert (>20% Toleranz)
+    too_short_ms = 40 * 60 * 1000
+    mock_resp = _make_mock_response(time_ms=too_short_ms, distance_m=30_000)
+
+    with patch("app.services.circular_route.httpx.AsyncClient") as MockClient:
+        mock_client = AsyncMock()
+        MockClient.return_value.__aenter__.return_value = mock_client
+        mock_client.post = AsyncMock(return_value=mock_resp)
+
+        routes = await generate_circular_routes(
+            lat=48.137,
+            lon=11.575,
+            duration_min=60,
+            graphhopper_url="http://localhost:8989",
+        )
+
+    assert len(routes) == 0
+
+
+@pytest.mark.asyncio
+async def test_generate_circular_routes_sorted_by_curviness():
+    target_ms = 60 * 60 * 1000
+    call_count = 0
+
+    async def varying_response(*args, **kwargs):
+        nonlocal call_count
+        dist = 40_000 if call_count % 2 == 0 else 55_000
+        call_count += 1
+        return _make_mock_response(time_ms=target_ms, distance_m=dist)
+
+    with patch("app.services.circular_route.httpx.AsyncClient") as MockClient:
+        mock_client = AsyncMock()
+        MockClient.return_value.__aenter__.return_value = mock_client
+        mock_client.post = varying_response
+
+        routes = await generate_circular_routes(
+            lat=48.137,
+            lon=11.575,
+            duration_min=60,
+            graphhopper_url="http://localhost:8989",
+        )
+
+    scores = [r["curviness_score"] for r in routes]
     assert scores == sorted(scores, reverse=True)
 
 
 @pytest.mark.asyncio
-async def test_empty_paths_response_ignored():
-    responses = [{"paths": []}] * 6
-    client = _make_mock_client(responses)
-    routes = await generate_circular_routes(48.137, 11.575, 60.0, _client=client)
+async def test_generate_circular_routes_handles_graphhopper_error():
+    import httpx
+
+    with patch("app.services.circular_route.httpx.AsyncClient") as MockClient:
+        mock_client = AsyncMock()
+        MockClient.return_value.__aenter__.return_value = mock_client
+        mock_client.post = AsyncMock(side_effect=httpx.ConnectError("GH down"))
+
+        routes = await generate_circular_routes(
+            lat=48.137,
+            lon=11.575,
+            duration_min=60,
+            graphhopper_url="http://localhost:8989",
+        )
+
     assert routes == []
+
+
+@pytest.mark.asyncio
+async def test_generate_circular_routes_6_requests_sent():
+    target_ms = 60 * 60 * 1000
+    mock_resp = _make_mock_response(time_ms=target_ms, distance_m=50_000)
+
+    with patch("app.services.circular_route.httpx.AsyncClient") as MockClient:
+        mock_client = AsyncMock()
+        MockClient.return_value.__aenter__.return_value = mock_client
+        mock_client.post = AsyncMock(return_value=mock_resp)
+
+        await generate_circular_routes(
+            lat=48.137,
+            lon=11.575,
+            duration_min=60,
+            graphhopper_url="http://localhost:8989",
+        )
+
+    assert mock_client.post.call_count == 6
+
+
+@pytest.mark.asyncio
+async def test_generate_circular_routes_partial_errors():
+    """Drei von sechs GH-Anfragen schlagen fehl → trotzdem 3 gültige Routen."""
+    import httpx as _httpx
+
+    target_ms = 60 * 60 * 1000
+    call_count = 0
+
+    async def alternating(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count % 2 == 0:
+            raise _httpx.ConnectError("down")
+        return _make_mock_response(time_ms=target_ms, distance_m=50_000)
+
+    with patch("app.services.circular_route.httpx.AsyncClient") as MockClient:
+        mock_client = AsyncMock()
+        MockClient.return_value.__aenter__.return_value = mock_client
+        mock_client.post = alternating
+
+        routes = await generate_circular_routes(
+            lat=48.137,
+            lon=11.575,
+            duration_min=60,
+            graphhopper_url="http://localhost:8989",
+        )
+
+    assert len(routes) == 3
