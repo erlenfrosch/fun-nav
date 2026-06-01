@@ -1,40 +1,42 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REGION="${REGION:-dach}"
-
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --region) REGION="$2"; shift 2 ;;
-    *) echo "Unbekannte Option: $1" >&2; exit 1 ;;
-  esac
-done
-
-declare -A REGIONS=(
-  [liechtenstein]="europe/liechtenstein-latest.osm.pbf|~1 MB"
-  [switzerland]="europe/switzerland-latest.osm.pbf|~507 MB"
-  [austria]="europe/austria-latest.osm.pbf|~763 MB"
-  [dach]="europe/dach-latest.osm.pbf|~5.7 GB"
-  [germany]="europe/germany-latest.osm.pbf|~4.4 GB"
-)
-
-if [[ -z "${REGIONS[$REGION]+set}" ]]; then
-  echo "Unbekannte Region: $REGION" >&2
-  echo "Verfügbar: ${!REGIONS[*]}" >&2
-  exit 1
-fi
-
-IFS="|" read -r path size <<< "${REGIONS[$REGION]}"
-
 TARGET="graphhopper/data/map.osm.pbf"
-URL="https://download.geofabrik.de/${path}"
+REGION="${OSM_REGION:-dach}"
+
+case "$REGION" in
+  dach)
+    URL="https://download.geofabrik.de/europe/dach-latest.osm.pbf"
+    SIZE="~3.6 GB"
+    ;;
+  germany)
+    URL="https://download.geofabrik.de/europe/germany-latest.osm.pbf"
+    SIZE="~4 GB"
+    ;;
+  austria)
+    URL="https://download.geofabrik.de/europe/austria-latest.osm.pbf"
+    SIZE="~600 MB"
+    ;;
+  switzerland)
+    URL="https://download.geofabrik.de/europe/switzerland-latest.osm.pbf"
+    SIZE="~400 MB"
+    ;;
+  test|liechtenstein)
+    URL="https://download.geofabrik.de/europe/liechtenstein-latest.osm.pbf"
+    SIZE="~1 MB"
+    ;;
+  *)
+    echo "Unbekannte Region: $REGION" >&2
+    echo "Gültige Werte: dach, germany, austria, switzerland, test" >&2
+    exit 1
+    ;;
+esac
 
 if [ -f "$TARGET" ]; then
   echo "OSM-Datei bereits vorhanden: $TARGET"
   exit 0
 fi
 
-echo "Lade OSM-Daten: ${REGION} (${size})..."
-echo "URL: $URL"
+echo "Lade OSM-Daten für Region '$REGION' ($SIZE)..."
 curl -L --progress-bar -o "$TARGET" "$URL"
 echo "Fertig: $TARGET"
