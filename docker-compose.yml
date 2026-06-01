@@ -1,14 +1,20 @@
 services:
   graphhopper:
-    image: graphhopper/graphhopper:7
+    image: graphhopper/graphhopper:latest
     volumes:
       - ./graphhopper/data:/data
       - ./graphhopper/config.yml:/graphhopper/config.yml
     ports:
       - "8989:8989"
     environment:
-      - JAVA_OPTS=-Xmx1g -Xms256m
+      - JAVA_OPTS=-Xmx2g -Xms256m
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8989/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 300s
 
   backend:
     build: ./backend
@@ -17,7 +23,8 @@ services:
     environment:
       - GRAPHHOPPER_URL=http://graphhopper:8989
     depends_on:
-      - graphhopper
+      graphhopper:
+        condition: service_healthy
     restart: unless-stopped
 
   frontend:
