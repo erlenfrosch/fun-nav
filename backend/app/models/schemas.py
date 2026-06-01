@@ -1,22 +1,34 @@
-from pydantic import BaseModel
-from typing import Literal, List, Any
+from enum import Enum
+from typing import Any, List
+
+from pydantic import BaseModel, Field
+
+
+class Curviness(str, Enum):
+    high = "high"
+    very_high = "very_high"
 
 
 class CircularRouteRequest(BaseModel):
-    lat: float
-    lon: float
-    duration_min: float
-    curviness: Literal["high", "very_high"]
+    lat: float = Field(..., ge=-90, le=90)
+    lon: float = Field(..., ge=-180, le=180)
+    duration_min: float = Field(..., gt=0, le=480)
+    curviness: Curviness
 
 
-class Instruction(BaseModel):
-    text: str
-    distance: float
+class GeoJSONLineString(BaseModel):
+    type: str = "LineString"
+    coordinates: List[Any]
 
 
 class GeoJSON(BaseModel):
     type: str
     coordinates: List[Any]
+
+
+class Instruction(BaseModel):
+    text: str
+    distance: float
 
 
 class Route(BaseModel):
