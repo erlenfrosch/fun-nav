@@ -1,28 +1,28 @@
 # Plan: Rundrouten-Generator Algorithmus
 
-**Datum:** 2026-06-02  
 **Issue:** #6  
-**Spec:** docs/superpowers/specs/2026-06-02-rundrouten-generator-design.md
+**Spec:** docs/superpowers/specs/2026-06-02-rundrouten-generator-design.md  
+**Datum:** 2026-06-02
 
-## Quellen
+## Recherche-Quellen
 
-- GraphHopper POST /route API: https://docs.graphhopper.com/openapi/routing/postroute.md
-  - Format: `{"points": [[lng, lat], ...], "profile": "car", "instructions": false}`
-  - Response: `{"paths": [{"time": ms, "distance": m}]}`
+- GraphHopper Route API: https://docs.graphhopper.com/openapi/routing/getroute  
+  POST /route — points als [lon, lat], time in ms, distance in m
+- Inverse Haversine: bearing + Distanz → Zielpunkt
 
-## Tasks
+## Dateien
 
-1. `backend/app/models/route.py` — Pydantic-Modelle (Request/Response)
-2. `backend/app/services/circular_route.py` — Kern-Algorithmus
-3. `backend/app/routes/circular_route.py` — FastAPI-Router
-4. `backend/tests/__init__.py` + `backend/tests/test_circular_route.py` — Unit-Tests (TDD)
-5. `backend/pytest.ini` — asyncio_mode = auto
-6. `backend/requirements.txt` — pytest, pytest-asyncio ergänzen
-7. `backend/app/main.py` — Router registrieren
+| Datei | Aktion |
+|---|---|
+| `backend/app/services/circular_route.py` | Neu — Kernalgorithmus |
+| `backend/app/main.py` | Erweiterung — POST /api/circular-routes Endpunkt |
+| `backend/tests/test_circular_route.py` | Neu — 22 Unit-Tests mit Mock-GH |
+| `backend/pytest.ini` | Neu — asyncio_mode = auto |
+| `backend/requirements.txt` | Ergänzt — pytest, pytest-asyncio |
 
 ## Entscheidungen
 
-- **6 Routen aus 8 Wegpunkten**: Indices 0–5 (0°, 45°, 90°, 135°, 180°, 225°)
-- **Curviness**: `distance_m / (2 * radius_km * 1000)` — einfach, keine GraphHopper-Details nötig
-- **GRAPHHOPPER_URL**: aus env-Variable, Default `http://graphhopper:8989`
-- **Timeout**: 10 s pro Request
+- **asyncio.gather**: Alle 6 GH-Anfragen parallel → minimale Latenz
+- **Curviness**: Referenz-Geschwindigkeit / tatsächliche Geschwindigkeit — höherer Score = langsamere, kurvenreichere Route
+- **6 Routen**: 3 × 180°-Paare, je beide Richtungen — ausreichend Vielfalt für Top-3-Selektion
+- **pytest-asyncio**: async Tests für `generate_circular_routes` mit httpx-Mock

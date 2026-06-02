@@ -1,118 +1,112 @@
 import asyncio
 import math
-import os
 from typing import NamedTuple
 
 import httpx
 
 EARTH_RADIUS_KM = 6371.0
-AVG_SPEED_KMPH = 40.0
-TIME_TOLERANCE = 0.20
-NUM_WAYPOINTS = 8
-NUM_ROUTES = 6
-GRAPHHOPPER_URL = os.getenv("GRAPHHOPPER_URL", "http://graphhopper:8989")
+AVG_SPEED_KMH = 50.0
+REFERENCE_SPEED_KMH = 80.0
 
 
 class Waypoint(NamedTuple):
     lat: float
-    lng: float
+    lon: float
 
 
-def calculate_radius(duration_min: float, speed_kmh: float = AVG_SPEED_KMPH) -> float:
-    return (duration_min / 60.0 * speed_kmh) / (2 * math.pi)
+def compute_radius_km(duration_min: float, avg_speed_kmh: float = AVG_SPEED_KMH) -> float:
+    return (duration_min / 60.0 * avg_speed_kmh) / (2 * math.pi)
 
 
-def haversine_waypoint(
-    origin_lat: float, origin_lng: float, radius_km: float, bearing_deg: float
-) -> Waypoint:
-    lat1 = math.radians(origin_lat)
-    lng1 = math.radians(origin_lng)
-    bearing = math.radians(bearing_deg)
-    d_over_r = radius_km / EARTH_RADIUS_KM
+def destination_point(lat: float, lon: float, bearing_deg: float, distance_km: float) -> Waypoint:
+    d = distance_km / EARTH_RADIUS_KM
+    lat_r = math.radians(lat)
+    lon_r = math.radians(lon)
+    b_r = math.radians(bearing_deg)
 
-    lat2 = math.asin(
-        math.sin(lat1) * math.cos(d_over_r)
-        + math.cos(lat1) * math.sin(d_over_r) * math.cos(bearing)
+    lat2_r = math.asin(
+        math.sin(lat_r) * math.cos(d)
+        + math.cos(lat_r) * math.sin(d) * math.cos(b_r)
     )
-    lng2 = lng1 + math.atan2(
-        math.sin(bearing) * math.sin(d_over_r) * math.cos(lat1),
-        math.cos(d_over_r) - math.sin(lat1) * math.sin(lat2),
+    lon2_r = lon_r + math.atan2(
+        math.sin(b_r) * math.sin(d) * math.cos(lat_r),
+        math.cos(d) - math.sin(lat_r) * math.sin(lat2_r),
     )
-    return Waypoint(lat=math.degrees(lat2), lng=math.degrees(lng2))
+    return Waypoint(lat=math.degrees(lat2_r), lon=math.degrees(lon2_r))
 
 
-def generate_waypoints(
-    origin_lat: float, origin_lng: float, radius_km: float, count: int = NUM_WAYPOINTS
-) -> list[Waypoint]:
+def generate_waypoints(lat: float, lon: float, radius_km: float, count: int = 8) -> list[Waypoint]:
     step = 360.0 / count
-    return [
-        haversine_waypoint(origin_lat, origin_lng, radius_km, i * step)
-        for i in range(count)
-    ]
+    return [destination_point(lat, lon, i * step, radius_km) for i in range(count)]
+
+
+def curviness_score(time_ms: float, distance_m: float) -> float:
+    if distance_m <= 0:
+        return 0.0
+    actual_speed_kmh = (distance_m / 1000.0) / (time_ms / 3_600_000.0)
+    return round(REFERENCE_SPEED_KMH / max(actual_speed_kmh, 0.1), 2)
 
 
 async def _fetch_route(
-    client: httpx.AsyncClient, origin: Waypoint, via: Waypoint
+    client: httpx.AsyncClient,
+    graphhopper_url: str,
+    points: list[Waypoint],
+    profile: str,
 ) -> dict | None:
     payload = {
-        "points": [
-            [origin.lng, origin.lat],
-            [via.lng, via.lat],
-            [origin.lng, origin.lat],
-        ],
-        "profile": "car",
+        "points": [[p.lon, p.lat] for p in points],
+        "profile": profile,
         "instructions": False,
         "calc_points": False,
     }
     try:
-        resp = await client.post(f"{GRAPHHOPPER_URL}/route", json=payload, timeout=10.0)
+        resp = await client.post(f"{graphhopper_url}/route", json=payload, timeout=10.0)
         resp.raise_for_status()
         paths = resp.json().get("paths", [])
-        return paths[0] if paths else None
-    except Exception:
+        if not paths:
+            return None
+        return {"time_ms": paths[0]["time"], "distance_m": paths[0]["distance"]}
+    except (httpx.HTTPError, KeyError):
         return None
 
 
-def calculate_curviness(distance_m: float, radius_km: float) -> float:
-    optimal_m = 2 * radius_km * 1000
-    if optimal_m == 0:
-        return 0.0
-    return distance_m / optimal_m
-
-
 async def generate_circular_routes(
-    origin_lat: float,
-    origin_lng: float,
+    lat: float,
+    lon: float,
     duration_min: float,
+    graphhopper_url: str = "http://graphhopper:8989",
+    profile: str = "car",
+    tolerance: float = 0.20,
+    top_n: int = 3,
 ) -> list[dict]:
-    radius_km = calculate_radius(duration_min)
-    waypoints = generate_waypoints(origin_lat, origin_lng, radius_km)
-    candidates = waypoints[:NUM_ROUTES]
-    origin = Waypoint(lat=origin_lat, lng=origin_lng)
+    radius_km = compute_radius_km(duration_min)
+    waypoints = generate_waypoints(lat, lon, radius_km)
+    start = Waypoint(lat=lat, lon=lon)
 
-    min_ms = duration_min * 60 * 1000 * (1 - TIME_TOLERANCE)
-    max_ms = duration_min * 60 * 1000 * (1 + TIME_TOLERANCE)
+    opposite_pairs = [(0, 4), (1, 5), (2, 6)]
+    route_point_sets = []
+    for i, j in opposite_pairs:
+        route_point_sets.append([start, waypoints[i], waypoints[j], start])
+        route_point_sets.append([start, waypoints[j], waypoints[i], start])
 
     async with httpx.AsyncClient() as client:
         results = await asyncio.gather(
-            *[_fetch_route(client, origin, wp) for wp in candidates]
+            *[_fetch_route(client, graphhopper_url, pts, profile) for pts in route_point_sets]
         )
 
+    target_ms = duration_min * 60.0 * 1000.0
     routes = []
-    for path, wp in zip(results, candidates):
-        if path is None:
+    for result in results:
+        if result is None:
             continue
-        time_ms = path.get("time", 0)
-        if min_ms <= time_ms <= max_ms:
-            dist_m = path.get("distance", 0)
-            routes.append(
-                {
-                    "duration_min": time_ms / 60000,
-                    "distance_km": dist_m / 1000,
-                    "waypoint": {"lat": wp.lat, "lng": wp.lng},
-                    "curviness_score": calculate_curviness(dist_m, radius_km),
-                }
-            )
+        deviation = abs(result["time_ms"] - target_ms) / target_ms
+        if deviation > tolerance:
+            continue
+        routes.append({
+            "duration_min": round(result["time_ms"] / 60_000.0, 1),
+            "distance_km": round(result["distance_m"] / 1000.0, 1),
+            "curviness_score": curviness_score(result["time_ms"], result["distance_m"]),
+        })
 
     routes.sort(key=lambda r: r["curviness_score"], reverse=True)
-    return routes
+    return routes[:top_n]

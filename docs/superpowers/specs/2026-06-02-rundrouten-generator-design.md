@@ -1,45 +1,43 @@
 # Spec: Rundrouten-Generator Algorithmus
 
-**Datum:** 2026-06-02  
 **Issue:** #6  
-**Branch:** agent/issue-6
+**Branch:** agent/issue-6  
+**Datum:** 2026-06-02
 
 ## Problem
 
-Nutzer möchten Rundrouten (Ausfahrten) generieren, bei denen Start = Ziel ist und die
-Fahrzeit einem gewünschten Zielwert entspricht.
+fun-nav soll Motorrad-/Auto-Fahrern Rundrouten auf Basis einer gewünschten Fahrtzeit
+generieren. Ohne Algorithmus gibt es keine Routen.
 
 ## Lösung
 
-### Algorithmus
+Service `backend/app/services/circular_route.py` mit folgendem Algorithmus:
 
-1. **Radius berechnen** — `r = (fahrtzeit_min / 60 × 40 km/h) / (2π)` km
-2. **8 Wegpunkte generieren** — gleichmäßig auf Kreis (45°-Schritte) via Haversine
-3. **6 Routen-Varianten anfragen** — parallele asyncio-Requests an GraphHopper
-   (start → waypoint → start, je eine Route pro Wegpunkt)
-4. **Filtern** — Abweichung der Fahrzeit ≤ 20% vom Zielwert
-5. **Ranken** — nach Curviness-Score absteigend (Strecke / (2 × Radius))
+1. **Radius-Berechnung**  
+   `radius = (fahrtzeit_min / 60 * avg_speed) / (2π)` km  
+   avg_speed = 50 km/h (kurvenreich) / 40 km/h (sehr kurvenreich)
 
-### API
+2. **8 Kandidaten-Waypoints** gleichmäßig auf dem Kreis (je 45°) via Haversine-Formel  
+   (Inverse-Haversine: Zielpunkt aus Startpunkt, Kurs und Distanz)
 
-`POST /api/circular-routes`
+3. **6 Routen-Varianten** via GraphHopper:  
+   - 3 Paare mit genau gegenüberliegenden Waypoints (180°): (W0,W4), (W1,W5), (W2,W6)  
+   - Jedes Paar erzeugt 2 Routen (Richtungswechsel): Start→Wi→Wj→Start und Start→Wj→Wi→Start  
+   - Parallelisiert via `asyncio.gather`
 
-Request:
-```json
-{"lat": 48.137, "lng": 11.575, "duration_min": 60}
-```
+4. **Filtern:** Fahrtzeit-Abweichung ≤ 20% vom Ziel
 
-Response:
-```json
-[{"duration_min": 57.3, "distance_km": 42.1, "waypoint": {"lat": ..., "lng": ...}, "curviness_score": 3.2}]
-```
+5. **Sortieren** nach Kurvigkeits-Score (absteigende Reihenfolge)  
+   Score = Referenzgeschwindigkeit (80 km/h) / tatsächliche Durchschnittsgeschwindigkeit
+
+6. **Top 3 zurückgeben**
 
 ## Akzeptanzkriterium
 
-München (48.137°N, 11.575°E), 60 min → mind. 3 Routen mit 48–72 min Dauer.
+München (48.137°N, 11.575°E), 60 min → 3 Routen mit 48–72 min Dauer.
 
 ## Nicht-Ziele
 
-- Keine Echtzeit-Verkehrsdaten
-- Kein Caching der GraphHopper-Ergebnisse
-- Keine Profil-Auswahl (nur `car`)
+- Keine UI-Anbindung in diesem Issue
+- Kein Profil-Auswahl (car als Default)
+- Kein Caching
