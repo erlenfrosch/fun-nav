@@ -2,7 +2,7 @@ graphhopper:
   datareader.file: /data/map.osm.pbf
   graph.location: /data/graph-cache
 
-  graph.encoded_values: curvature,road_class
+  graph.encoded_values: road_class,curvature
 
   profiles:
     - name: car
