@@ -1,11 +1,11 @@
-from typing import Annotated, Any
-from enum import Enum
+from typing import Any
 
-from fastapi import FastAPI, Body
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
+import httpx
 
-from app.routing import fetch_route, RoutingMode
+from services.graphhopper import route as gh_route, CUSTOM_MODELS
 
 app = FastAPI(title="fun-nav API", version="0.1.0")
 
@@ -16,13 +16,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-VALID_PROFILES = {"car", "bike", "foot"}
+VALID_MODES = set(CUSTOM_MODELS.keys())
 
 
 class RouteRequest(BaseModel):
     points: list[list[float]]
-    profile: str
-    mode: RoutingMode = RoutingMode.fastest
+    mode: str
 
     @field_validator("points")
     @classmethod
@@ -31,11 +30,11 @@ class RouteRequest(BaseModel):
             raise ValueError("at least two points required")
         return v
 
-    @field_validator("profile")
+    @field_validator("mode")
     @classmethod
-    def valid_profile(cls, v: str) -> str:
-        if v not in VALID_PROFILES:
-            raise ValueError(f"profile must be one of {sorted(VALID_PROFILES)}")
+    def valid_mode(cls, v: str) -> str:
+        if v not in VALID_MODES:
+            raise ValueError(f"mode must be one of {sorted(VALID_MODES)}")
         return v
 
 
@@ -45,5 +44,8 @@ def health() -> dict[str, str]:
 
 
 @app.post("/route")
-async def route(request: RouteRequest) -> dict[str, Any]:
-    return await fetch_route(request.points, request.profile, request.mode)
+def route(request: RouteRequest) -> dict[str, Any]:
+    try:
+        return gh_route(request.points, request.mode)
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
