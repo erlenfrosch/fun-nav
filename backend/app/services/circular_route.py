@@ -3,7 +3,7 @@ import math
 
 from fastapi import HTTPException
 
-from app.models.schemas import Curviness, GeoJSONLineString, Instruction, Route
+from app.models.schemas import Curviness, GeoJsonLineString, RouteInstruction, RouteResult
 from app.services.graphhopper import query_route
 
 EARTH_RADIUS_KM = 6371.0
@@ -29,17 +29,17 @@ def _waypoints_on_circle(
     return waypoints
 
 
-def _parse_route(path: dict, route_id: str) -> Route:
-    return Route(
+def _parse_route(path: dict, route_id: str) -> RouteResult:
+    return RouteResult(
         id=route_id,
         duration_min=round(path["time"] / 60_000, 1),
         distance_km=round(path["distance"] / 1_000, 1),
-        geojson=GeoJSONLineString(
+        geojson=GeoJsonLineString(
             type="LineString",
             coordinates=path["points"]["coordinates"],
         ),
         instructions=[
-            Instruction(text=instr["text"], distance=instr["distance"])
+            RouteInstruction(text=instr["text"], distance=instr["distance"])
             for instr in path.get("instructions", [])
         ],
     )
@@ -47,7 +47,7 @@ def _parse_route(path: dict, route_id: str) -> Route:
 
 async def generate_circular_routes(
     lat: float, lon: float, duration_min: int, curviness: Curviness
-) -> list[Route]:
+) -> list[RouteResult]:
     avg_speed = AVG_SPEED_KMH[curviness]
     radius_km = (duration_min / 60 * avg_speed) / (2 * math.pi)
 
@@ -80,7 +80,7 @@ async def generate_circular_routes(
     min_dur = duration_min * (1 - TIME_TOLERANCE)
     max_dur = duration_min * (1 + TIME_TOLERANCE)
 
-    valid: list[Route] = []
+    valid: list[RouteResult] = []
     for r in raw:
         if isinstance(r, Exception):
             continue
