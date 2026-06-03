@@ -25,6 +25,7 @@ def build_route_request(points: list, mode: str) -> dict:
     return {
         "points": points,
         "profile": "car_custom",
+        "ch.disable": True,
         "custom_model": CUSTOM_MODELS[mode],
     }
 

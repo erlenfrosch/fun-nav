@@ -28,6 +28,10 @@ class TestBuildRouteRequest:
         req = build_route_request(SAMPLE_POINTS, "kurvenreich")
         assert req["points"] == SAMPLE_POINTS
 
+    def test_ch_disabled_in_request(self):
+        req = build_route_request(SAMPLE_POINTS, "kurvenreich")
+        assert req["ch.disable"] is True
+
     def test_invalid_mode_raises(self):
         with pytest.raises(ValueError, match="Unknown mode"):
             build_route_request(SAMPLE_POINTS, "unbekannt")
