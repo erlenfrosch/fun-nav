@@ -21,12 +21,21 @@ Navigationsdienst auf Basis von GraphHopper, FastAPI und React PWA.
 
 ```bash
 chmod +x scripts/download-osm.sh
+
+# Entwicklung: Liechtenstein (~1 MB, schneller Import)
 ./scripts/download-osm.sh
+
+# Produktion: DACH – Deutschland, Österreich, Schweiz (~5.7 GB)
+./scripts/download-osm.sh dach
 ```
 
-Das Skript lädt Liechtenstein (~1 MB) als Testdatensatz. Für produktive Nutzung
-`.pbf`-Datei aus [Geofabrik](https://download.geofabrik.de/) herunterladen und als
-`graphhopper/data/map.osm.pbf` ablegen.
+Für den DACH-Betrieb muss außerdem `JAVA_OPTS` auf mindestens 8 GB gesetzt werden
+(Vorlage in `.env.example`):
+
+```bash
+cp .env.example .env
+# .env öffnen und DACH-Zeile auskommentieren
+```
 
 ### 2. Services starten
 
