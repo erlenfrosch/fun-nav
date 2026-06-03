@@ -19,7 +19,7 @@ GRAPHHOPPER_URL = os.getenv("GRAPHHOPPER_URL", "http://graphhopper:8989")
 
 _SPEED_M_PER_MIN: dict = {
     "high": 250.0,
-    "very_high": 200.0,
+    "very_high": 167.0,
 }
 
 _NUM_ROUTES = 3
