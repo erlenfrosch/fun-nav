@@ -21,20 +21,24 @@ Navigationsdienst auf Basis von GraphHopper, FastAPI und React PWA.
 
 ```bash
 chmod +x scripts/download-osm.sh
-
-# Entwicklung: Liechtenstein (~1 MB, schneller Import)
 ./scripts/download-osm.sh
-
-# Produktion: DACH – Deutschland, Österreich, Schweiz (~5.7 GB)
-./scripts/download-osm.sh dach
 ```
 
-Für den DACH-Betrieb muss außerdem `JAVA_OPTS` auf mindestens 8 GB gesetzt werden
-(Vorlage in `.env.example`):
+Standard lädt DACH (~3.6 GB). Über die Umgebungsvariable `OSM_REGION` kann eine
+kleinere Region gewählt werden:
+
+| `OSM_REGION` | Quelle | Größe |
+|---|---|---|
+| `dach` (Standard) | Geofabrik DACH | ~3.6 GB |
+| `germany` | Geofabrik Germany | ~4 GB |
+| `austria` | Geofabrik Austria | ~600 MB |
+| `switzerland` | Geofabrik Switzerland | ~400 MB |
+| `test` | Liechtenstein | ~1 MB |
+
+Beispiel für schnellen Teststart:
 
 ```bash
-cp .env.example .env
-# .env öffnen und DACH-Zeile auskommentieren
+OSM_REGION=test ./scripts/download-osm.sh
 ```
 
 ### 2. Services starten
