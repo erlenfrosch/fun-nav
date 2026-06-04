@@ -2,6 +2,9 @@ graphhopper:
   datareader.file: /data/map.osm.pbf
   graph.location: /data/graph-cache
 
+  encoded_values:
+    - curvature
+
   profiles:
     - name: car
       vehicle: car
@@ -12,6 +15,24 @@ graphhopper:
     - name: foot
       vehicle: foot
       weighting: fastest
+    - name: kurvenreich
+      vehicle: car
+      weighting: custom
+      custom_model:
+        priority:
+          - if: "curvature < 0.7"
+            multiply_by: "1.5"
+          - if: "road_class == MOTORWAY"
+            multiply_by: "0.1"
+    - name: sehr_kurvenreich
+      vehicle: car
+      weighting: custom
+      custom_model:
+        priority:
+          - if: "curvature < 0.4"
+            multiply_by: "3.0"
+          - if: "road_class == MOTORWAY || road_class == TRUNK"
+            multiply_by: "0.05"
 
   profiles_ch:
     - profile: car
