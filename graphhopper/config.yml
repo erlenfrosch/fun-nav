@@ -8,12 +8,12 @@ graphhopper:
     - name: car
       vehicle: car
       weighting: fastest
-    - name: car_custom
-      vehicle: car
-      weighting: custom
     - name: bike
       vehicle: bike
       weighting: fastest
+    - name: bike_custom
+      vehicle: bike
+      weighting: custom
     - name: foot
       vehicle: foot
       weighting: fastest

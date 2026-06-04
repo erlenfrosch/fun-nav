@@ -62,7 +62,7 @@ def test_kurvenreich_sends_correct_custom_model():
     body = json.loads(route_mock.calls.last.request.content)
     assert body["custom_model"] == CURVY_MODEL
     assert body["ch.disable"] is True
-    assert body["profile"] == "car_custom"
+    assert body["profile"] == "bike_custom"
 
 
 @respx.mock

@@ -14,7 +14,7 @@ SAMPLE_POINTS = [[13.388860, 52.517037], [13.397634, 52.529407]]
 class TestBuildRouteRequest:
     def test_kurvenreich_sets_profile(self):
         req = build_route_request(SAMPLE_POINTS, "kurvenreich")
-        assert req["profile"] == "car_custom"
+        assert req["profile"] == "bike_custom"
 
     def test_kurvenreich_sets_correct_custom_model(self):
         req = build_route_request(SAMPLE_POINTS, "kurvenreich")
@@ -95,12 +95,12 @@ class TestRoute:
             sent_json = mock_post.call_args[1]["json"]
             assert sent_json["custom_model"] == CUSTOM_MODELS["sehr_kurvenreich"]
 
-    def test_route_sends_car_custom_profile(self):
+    def test_route_sends_bike_custom_profile(self):
         with patch("services.graphhopper.httpx.post") as mock_post:
             mock_post.return_value = self._mock_response({"paths": []})
             route(SAMPLE_POINTS, "kurvenreich")
             sent_json = mock_post.call_args[1]["json"]
-            assert sent_json["profile"] == "car_custom"
+            assert sent_json["profile"] == "bike_custom"
 
     def test_route_returns_graphhopper_response(self):
         expected = {"paths": [{"distance": 2500.0, "time": 300000}]}

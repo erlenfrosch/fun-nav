@@ -37,7 +37,7 @@ def get_route(
         raise ValueError(f"Unbekannter Modus {mode!r}. Gültig: {list(_MODELS)}")
 
     payload = {
-        "profile": "car_custom",
+        "profile": "bike_custom",
         "points": [start, end],
         "ch.disable": True,
         "custom_model": _MODELS[mode],

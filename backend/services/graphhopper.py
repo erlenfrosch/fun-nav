@@ -24,7 +24,7 @@ def build_route_request(points: list, mode: str) -> dict:
         raise ValueError(f"Unknown mode: {mode!r}. Must be one of {list(CUSTOM_MODELS)}")
     return {
         "points": points,
-        "profile": "car_custom",
+        "profile": "bike_custom",
         "ch.disable": True,
         "custom_model": CUSTOM_MODELS[mode],
     }
