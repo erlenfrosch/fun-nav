@@ -1,28 +1,50 @@
 import os
+from typing import Literal
 
 import httpx
 
-GRAPHHOPPER_URL = os.getenv("GRAPHHOPPER_URL", "http://localhost:8989")
+GRAPHHOPPER_BASE_URL = os.getenv("GRAPHHOPPER_URL", "http://graphhopper:8989")
+
+CUSTOM_MODELS: dict[str, dict] = {
+    "kurvenreich": {
+        "priority": [
+            {"if": "curvature < 0.7", "multiply_by": 1.5},
+            {"if": "road_class == MOTORWAY", "multiply_by": 0.1},
+        ]
+    },
+    "sehr_kurvenreich": {
+        "priority": [
+            {"if": "curvature < 0.4", "multiply_by": 3.0},
+            {"if": "road_class == MOTORWAY || road_class == TRUNK", "multiply_by": 0.05},
+        ]
+    },
+}
+
+CurvyMode = Literal["kurvenreich", "sehr_kurvenreich"]
 
 
-class GraphHopperClient:
-    def __init__(self, base_url: str = GRAPHHOPPER_URL):
-        self.base_url = base_url.rstrip("/")
-
-    async def route(self, points: list[list[float]], profile: str = "car") -> dict:
-        payload = {
-            "points": points,
-            "profile": profile,
-            "points_encoded": False,
-        }
-        async with httpx.AsyncClient() as http:
-            response = await http.post(
-                f"{self.base_url}/route",
-                json=payload,
-                timeout=30.0,
-            )
-            response.raise_for_status()
-            return response.json()
+def build_route_request(points: list[list[float]], mode: CurvyMode) -> dict:
+    if mode not in CUSTOM_MODELS:
+        raise ValueError(f"Unbekannter Modus {mode!r}. Gültig: {list(CUSTOM_MODELS)}")
+    return {
+        "points": points,
+        "profile": "bike_custom",
+        "ch.disable": True,
+        "custom_model": CUSTOM_MODELS[mode],
+    }
 
 
-graphhopper_client = GraphHopperClient()
+def route(points: list[list[float]], mode: CurvyMode, base_url: str = GRAPHHOPPER_BASE_URL) -> dict:
+    payload = build_route_request(points, mode)
+    response = httpx.post(f"{base_url}/route", json=payload, timeout=30.0)
+    response.raise_for_status()
+    return response.json()
+
+
+def get_route(
+    start: list[float],
+    end: list[float],
+    mode: CurvyMode,
+    base_url: str = GRAPHHOPPER_BASE_URL,
+) -> dict:
+    return route([start, end], mode, base_url)
