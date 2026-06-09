@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouting } from '../hooks/useRouting'
-import type { Curviness } from '../api/routes'
+import type { Curviness, RouteOption } from '../api/routes'
 import styles from './RoutePanel.module.css'
 
 const DURATION_MIN = 15
@@ -11,12 +11,17 @@ const DURATION_DEFAULT = 60
 interface RoutePanelProps {
   lat: number
   lon: number
+  onRoutesCalculated?: (routes: RouteOption[]) => void
 }
 
-export function RoutePanel({ lat, lon }: RoutePanelProps) {
+export function RoutePanel({ lat, lon, onRoutesCalculated }: RoutePanelProps) {
   const [duration, setDuration] = useState(DURATION_DEFAULT)
   const [curviness, setCurviness] = useState<Curviness>('kurvenreich')
-  const { loading, error, calculateRoute } = useRouting()
+  const { loading, error, calculateRoute, routes } = useRouting()
+
+  useEffect(() => {
+    if (routes.length > 0) onRoutesCalculated?.(routes)
+  }, [routes, onRoutesCalculated])
 
   const handleCalculate = () => {
     void calculateRoute({ lat, lon, duration_min: duration, curviness })
