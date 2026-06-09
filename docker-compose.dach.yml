@@ -1,0 +1,6 @@
+services:
+  graphhopper:
+    environment:
+      - JAVA_OPTS=-Xmx6g -Xms1g
+    healthcheck:
+      start_period: 900s

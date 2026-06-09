@@ -24,9 +24,22 @@ chmod +x scripts/download-osm.sh
 ./scripts/download-osm.sh
 ```
 
-Das Skript lädt Liechtenstein (~1 MB) als Testdatensatz. Für produktive Nutzung
-`.pbf`-Datei aus [Geofabrik](https://download.geofabrik.de/) herunterladen und als
-`graphhopper/data/map.osm.pbf` ablegen.
+Standard lädt DACH (~3.6 GB). Über die Umgebungsvariable `OSM_REGION` kann eine
+kleinere Region gewählt werden:
+
+| `OSM_REGION` | Quelle | Größe |
+|---|---|---|
+| `dach` (Standard) | Geofabrik DACH | ~3.6 GB |
+| `germany` | Geofabrik Germany | ~4 GB |
+| `austria` | Geofabrik Austria | ~600 MB |
+| `switzerland` | Geofabrik Switzerland | ~400 MB |
+| `test` | Liechtenstein | ~1 MB |
+
+Beispiel für schnellen Teststart:
+
+```bash
+OSM_REGION=test ./scripts/download-osm.sh
+```
 
 ### 2. Services starten
 
