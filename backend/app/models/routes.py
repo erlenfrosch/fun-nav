@@ -11,10 +11,10 @@ class CircularRouteRequest(BaseModel):
 
 class RouteGeometry(BaseModel):
     type: str
-    coordinates: list
+    coordinates: list[list[float]]
 
 
-class Route(BaseModel):
+class RouteOption(BaseModel):
     id: str
     duration_min: int
     distance_km: float
@@ -22,4 +22,4 @@ class Route(BaseModel):
 
 
 class CircularRouteResponse(BaseModel):
-    routes: list[Route]
+    routes: list[RouteOption]
