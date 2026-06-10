@@ -55,7 +55,7 @@ export function RouteMap({ routes, selectedIndex, onRouteSelect }: RouteMapProps
     <MapGL
       ref={mapRef}
       mapStyle={MAP_STYLE}
-      initialViewState={{ longitude: 9.5215, latitude: 47.1416, zoom: 9 }}
+      initialViewState={{ longitude: 13.5, latitude: 47.5, zoom: 7 }}
       style={{ width: '100%', height: '100%' }}
       onClick={handleClick}
       onMouseMove={handleMouseMove}
