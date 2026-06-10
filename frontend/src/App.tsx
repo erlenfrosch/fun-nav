@@ -2,12 +2,13 @@ import { useState } from 'react'
 import { RoutePanel } from './components/RoutePanel'
 import { RouteCard } from './components/RouteCard'
 import { RouteMap } from './components/Map'
+import type { RouteOption } from './api/routes'
 
-const DEFAULT_LAT = 47.1666
-const DEFAULT_LON = 9.5554
+const DEFAULT_LAT = 47.5
+const DEFAULT_LON = 13.5
 
 export default function App() {
-  const [routes, setRoutes] = useState([])
+  const [routes, setRoutes] = useState<RouteOption[]>([])
   const [selectedIndex, setSelectedIndex] = useState(0)
 
   return (
