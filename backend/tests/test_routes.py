@@ -1,53 +1,109 @@
 import pytest
+import httpx
+import respx
 from fastapi.testclient import TestClient
+
 from app.main import app
 
 client = TestClient(app)
 
-VALID_PAYLOAD = {
-    "lat": 47.8,
-    "lon": 13.0,
-    "duration_min": 60,
-    "curviness": "kurvenreich",
+GH_ROUTE_RESPONSE = {
+    "paths": [
+        {
+            "distance": 42000.0,
+            "time": 3600000,
+            "points": {
+                "type": "LineString",
+                "coordinates": [
+                    [13.4, 48.1],
+                    [13.5, 48.2],
+                    [13.4, 48.3],
+                    [13.4, 48.1],
+                ],
+            },
+        }
+    ]
 }
 
 
-def test_circular_route_returns_200():
-    response = client.post("/api/routes/circular", json=VALID_PAYLOAD)
+def test_health():
+    response = client.get("/health")
     assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
 
 
-def test_circular_route_returns_routes_list():
-    response = client.post("/api/routes/circular", json=VALID_PAYLOAD)
+@respx.mock
+def test_circular_route_success():
+    respx.post("http://graphhopper:8989/route").mock(
+        return_value=httpx.Response(200, json=GH_ROUTE_RESPONSE)
+    )
+    response = client.post(
+        "/api/routes/circular",
+        json={"lat": 48.1, "lon": 13.4, "duration_min": 60, "curviness": "kurvenreich"},
+    )
+    assert response.status_code == 200
     data = response.json()
     assert "routes" in data
-    assert isinstance(data["routes"], list)
-    assert len(data["routes"]) > 0
-
-
-def test_circular_route_route_has_required_fields():
-    response = client.post("/api/routes/circular", json=VALID_PAYLOAD)
-    route = response.json()["routes"][0]
-    assert "id" in route
-    assert "duration_min" in route
+    assert len(data["routes"]) == 1
+    route = data["routes"][0]
+    assert route["duration_min"] == 60
     assert "distance_km" in route
-    assert "geometry" in route
+    assert route["geometry"]["type"] == "LineString"
+    assert len(route["geometry"]["coordinates"]) >= 2
 
 
-def test_circular_route_geometry_is_linestring():
-    response = client.post("/api/routes/circular", json=VALID_PAYLOAD)
-    geometry = response.json()["routes"][0]["geometry"]
-    assert geometry["type"] == "LineString"
-    assert isinstance(geometry["coordinates"], list)
-    assert len(geometry["coordinates"]) > 0
+@respx.mock
+def test_circular_route_sehr_kurvenreich():
+    respx.post("http://graphhopper:8989/route").mock(
+        return_value=httpx.Response(200, json=GH_ROUTE_RESPONSE)
+    )
+    response = client.post(
+        "/api/routes/circular",
+        json={"lat": 48.1, "lon": 13.4, "duration_min": 60, "curviness": "sehr_kurvenreich"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    route = data["routes"][0]
+    assert route["id"] == "sehr_kurvenreich-60"
 
 
-def test_circular_route_missing_fields_returns_422():
-    response = client.post("/api/routes/circular", json={"lat": 47.8})
+@respx.mock
+def test_circular_route_graphhopper_down():
+    respx.post("http://graphhopper:8989/route").mock(
+        side_effect=httpx.ConnectError("Connection refused")
+    )
+    response = client.post(
+        "/api/routes/circular",
+        json={"lat": 48.1, "lon": 13.4, "duration_min": 60, "curviness": "kurvenreich"},
+    )
+    assert response.status_code == 502
+    assert "detail" in response.json()
+
+
+@respx.mock
+def test_circular_route_graphhopper_error():
+    respx.post("http://graphhopper:8989/route").mock(
+        return_value=httpx.Response(400, json={"message": "Invalid profile"})
+    )
+    response = client.post(
+        "/api/routes/circular",
+        json={"lat": 48.1, "lon": 13.4, "duration_min": 60, "curviness": "kurvenreich"},
+    )
+    assert response.status_code == 502
+    assert "detail" in response.json()
+
+
+def test_circular_route_validation_error_missing_field():
+    response = client.post(
+        "/api/routes/circular",
+        json={"lat": 48.1, "lon": 13.4, "duration_min": 60},
+    )
     assert response.status_code == 422
 
 
-def test_circular_route_invalid_curviness_returns_422():
-    payload = {**VALID_PAYLOAD, "curviness": "flach"}
-    response = client.post("/api/routes/circular", json=payload)
+def test_circular_route_validation_error_invalid_curviness():
+    response = client.post(
+        "/api/routes/circular",
+        json={"lat": 48.1, "lon": 13.4, "duration_min": 60, "curviness": "gerade"},
+    )
     assert response.status_code == 422
