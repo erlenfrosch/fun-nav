@@ -2,17 +2,20 @@
 
 ## Aktueller Fokus
 
-Issue #2 (GraphHopper Docker-Setup für DACH) implementiert auf Branch `agent/issue-2`.
+Issue #3 (FastAPI Backend Grundstruktur) implementiert auf Branch `agent/issue-3`.
 
 Änderungen:
-- `graphhopper/config.yml`: car_custom-Profil + LM-Mode für Custom Models
-- `scripts/download-osm.sh`: OSM_REGION-Variable, DACH als Standard
-- `docker-compose.yml`: healthcheck, latest-Image, service_healthy-Abhängigkeit
-- `README.md`: OSM_REGION-Tabelle dokumentiert
+- `backend/app/models/__init__.py`: Pydantic-Modelle (CircularRouteRequest, Route, CircularRouteResponse)
+- `backend/app/services/graphhopper.py`: Async GraphHopper-Client (httpx, POST /route)
+- `backend/app/routers/routes.py`: POST /api/routes/circular Endpoint
+- `backend/app/routers/health.py`: GET /health Router (aus Remote-Merge)
+- `backend/app/main.py`: Aufgeräumt, nur circular-route Router registriert
+- `backend/tests/`: 11 Tests grün (TestClient + respx-Mocks)
+- `backend/requirements.txt`: pydantic, pytest, respx ergänzt
 
 ## Offene Fragen
 
-- PR muss noch gemergt werden
+- PR für Issue #3 muss noch gepusht und geöffnet werden
 
 ## Bekannte Blocker
 
