@@ -2,10 +2,18 @@ import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
 import { RouteMap } from './Map'
 
+interface MapGLProps extends React.PropsWithChildren<object> {
+  initialViewState?: { longitude: number; latitude: number; zoom: number }
+  [key: string]: unknown
+}
+
+let capturedInitialViewState: MapGLProps['initialViewState'] | undefined
+
 vi.mock('react-map-gl/maplibre', () => ({
-  default: ({ children, ...props }: React.PropsWithChildren<object>) => (
-    <div data-testid="maplibre-map" {...(props as object)}>{children}</div>
-  ),
+  default: ({ children, initialViewState, ...props }: MapGLProps) => {
+    capturedInitialViewState = initialViewState
+    return <div data-testid="maplibre-map" {...(props as object)}>{children}</div>
+  },
   Source: ({ children }: React.PropsWithChildren<object>) => <>{children}</>,
   Layer: () => null,
 }))
@@ -33,6 +41,15 @@ describe('RouteMap', () => {
       <RouteMap routes={[]} selectedIndex={0} onRouteSelect={vi.fn()} />
     )
     expect(getByTestId('maplibre-map')).toBeInTheDocument()
+  })
+
+  it('uses DACH center as initial view state', () => {
+    render(<RouteMap routes={[]} selectedIndex={0} onRouteSelect={vi.fn()} />)
+    expect(capturedInitialViewState).toMatchObject({
+      longitude: 13.5,
+      latitude: 47.5,
+      zoom: 7,
+    })
   })
 
   it('renders without errors when routes provided', () => {
