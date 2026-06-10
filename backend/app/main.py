@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers.routes import router as routes_router
+
+from app.routers import routes
 
 app = FastAPI(title="fun-nav API", version="0.1.0")
 
@@ -11,7 +12,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(routes_router)
+app.include_router(routes.router)
 
 
 @app.get("/health")
